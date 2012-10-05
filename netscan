@@ -1,0 +1,53 @@
+#!/bin/bash
+i=1
+count=0
+
+CSI='\033['
+
+echo "IP		Name			MAC			Bemerkungen"
+echo -n "Status: Starte Überprüfung der IP's"
+while [ $i -le 15 ]; do
+	erreicht=false
+	echo -en "${CSI}2K\rStatus: Prüfe IP 192.168.0.${i}"
+	ping -c 1 -W 2 192.168.0.${i} > /dev/null
+	if (( $? == 0 )); then
+		echo -en "${CSI}2K\rStatus: IP 192.168.0.${i} erreicht, lese Informationen aus"
+		mac=$(arp -a 192.168.0.${i})
+		#echo "Fehlercode: ${?}"
+		if [ "${mac:0:4}" == "arp:" ]; then
+			mac=?
+		else
+			anfang=$(awk -v a="${mac}" -v b=")" 'BEGIN{print index(a,b)}')
+			let "anfang=${anfang}+5"
+			mac=${mac:${anfang}:17}
+		fi
+		case "$mac" in
+	        	#used for special descriptions on some macs
+		        "00:00:00:00:00:00")
+				bem="Fehler"
+			;;
+			*)
+				bem=""
+			;;
+		esac
+		name=(`nmblookup -A 192.168.0.${i} | awk -v FS=" " '{print $1}'`)
+		if [ "${name[1]}" == "WORKGROUP" ]; then
+			name="${name[2]}"
+		else
+			name="${name[1]}"
+		fi
+
+		echo -e "${CSI}2K\r192.168.0.${i}\t${name}\t\t\t${mac}\t${bem}"
+		let "count=${count}+1"
+		erreicht=true
+	fi
+	let "i=${i}+1"
+	if [ ${erreicht} == false ]; then
+		echo -en "${CSI}2K\rStatus: IP 192.168.0.${i} nicht erreichbar"
+	else
+		echo -n "Status: Fahre mit der nächsten IP fort"
+	fi
+done
+
+echo -e "${CSI}2K\rÜberprüfung beendet. Insgesamt ${count} gefunden"
+
